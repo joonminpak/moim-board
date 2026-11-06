@@ -376,9 +376,11 @@ a.payb.toss{background:#3182F6;color:#FFFFFF;border-color:#3182F6}
             </form>
           </details>
           <details class="form" id="payFormBox" data-poster hidden>
-            <summary>내 송금 받을 곳</summary>
+            <summary>송금 받을 곳 (멤버별)</summary>
             <form id="payForm" class="inner">
-              <p class="xs muted" style="margin:0">넣어 두면 나에게 보낼 사람 화면에 카카오페이·토스 버튼과 계좌 복사 버튼이 생겨요.</p>
+              <p class="xs muted" style="margin:0">멤버마다 따로 저장돼요. 각자 로그인해서 자기 받을 곳을 넣으면, 그 사람에게 보낼 사람 화면에 카카오페이·토스 버튼과 계좌 복사 버튼이 생겨요.</p>
+              <label class="f" id="pfWhoWrap">누구의 송금 정보인가요<select id="pfWho"></select></label>
+              <div class="small" id="pfWhoMe" style="font-weight:700"></div>
               <label class="f">카카오페이 송금 링크<input id="pfKakao" inputmode="url" placeholder="https://qr.kakaopay.com/..."></label>
               <p class="xs muted" style="margin:-4px 0 0">카카오페이 앱 → 송금 → 송금코드 → 링크 복사</p>
               <label class="f">토스 아이디 (toss.me)<input id="pfToss" placeholder="예: toss.me/myname 또는 myname"></label>

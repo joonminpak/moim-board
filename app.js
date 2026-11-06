@@ -544,12 +544,12 @@ function renderReceipts(){
 function renderMembers(){
   const box=$("#memberList");
   if(box.contains(document.activeElement) && document.activeElement.matches("input")) return;
-  const ids=activeIds(), left=leftIds(); $("#memberCount").textContent = ids.length+"명";
+  const ids=activeIds(), left=leftIds(); $("#memberCount").textContent = `${ids.length}명 · 송금 정보 ${ids.filter(id=>payKinds(S.members[id]).length).length}명 입력`;
   const mItem = (id, isLeft) => { const m=S.members[id]; const isMe=id===ME.id; const canRename=(isMe&&!isLeft)||(ME.admin&&m.manual);
     const cnt=S.rounds.filter(r=>respOf(id,r.id)?.s==="yes").length;
     return `<div class="item"><div class="body"><div class="row"><strong style="font-size:17px">${esc(m.name)}</strong>${isMe?'<span class="chip acc">나</span>':""}${m.manual?'<span class="chip">총무가 추가</span>':""}${isLeft?'<span class="chip">탈퇴</span>':""}</div>
       <div class="xs muted">${fmtDT(m.joinedAt)} 등록${isLeft?` · ${fmtDT(m.leftAt)} 탈퇴`:""} · 참석 ${cnt}회</div>
-      ${payKinds(m).length?`<div class="row" style="gap:4px;margin-top:4px">${payKinds(m).map(k=>`<span class="chip">${k}</span>`).join("")}</div>`:""}
+      <div class="row" style="gap:4px;margin-top:4px">${payKinds(m).length?payKinds(m).map(k=>`<span class="chip good">${k}</span>`).join(""):`<span class="chip">송금 받을 곳 미입력</span>`}${m.account?`<span class="xs muted">${esc(m.bank||"")} ${esc(m.account)}</span>`:""}${!isLeft&&(isMe||ME.admin)?`<button class="ghost sm" data-payedit="${id}">${payKinds(m).length?"송금 정보 수정":"송금 정보 입력"}</button>`:""}</div>
       ${canRename?`<form class="row" data-rename="${id}" style="margin-top:8px" hidden><input value="${esc(m.name)}" maxlength="20" style="flex:1"><button class="sm pri" type="submit">저장</button></form>`:""}</div>
       <div class="row" style="gap:0">${canRename?`<button class="ghost sm" data-renamebtn>이름 변경</button>`:""}${ME.admin&&!isMe&&!isLeft?`<button class="ghost sm" data-resetpin="${id}">PIN 초기화</button>`:""}${ME.admin&&!isMe?(isLeft?`<button class="ghost sm" data-restore="${id}">복구</button>`:`<button class="ghost sm danger" data-leave="${id}">탈퇴 처리</button>`):""}</div></div>`; };
   box.innerHTML = ids.length ? ids.map(id=>mItem(id,false)).join("") : `<div class="empty">아직 등록한 멤버가 없어요. 이 페이지 링크를 카톡방에 올려 각자 등록하게 해 주세요.</div>`;
@@ -709,18 +709,29 @@ const Actions = {
 };
 
 /* ---------- bindings ---------- */
+function openPayForm(who, scroll){
+  if(!ME.admin || !S.members[who]) who = ME.id;
+  UI.payWho = who;
+  const ids=activeIds(); const sel=$("#pfWho");
+  sel.innerHTML = ids.map(id=>`<option value="${id}" ${id===who?"selected":""}>${esc(nameOf(id))}${id===ME.id?" (나)":""}${payKinds(S.members[id]).length?"":" · 미입력"}</option>`).join("");
+  $("#pfWhoWrap").hidden = !ME.admin; $("#pfWhoMe").hidden = ME.admin;
+  $("#pfWhoMe").textContent = `${nameOf(ME.id)} 님의 송금 받을 곳`;
+  const m=S.members[who]||{};
+  $("#pfKakao").value=m.kakaoLink||""; $("#pfToss").value=m.tossId||""; $("#pfBank").value=m.bank||""; $("#pfAcct").value=m.account||"";
+  if(scroll){ const box=$("#payFormBox"); if(!box.open){ box.open=true; } setTimeout(()=>box.scrollIntoView({behavior:"smooth",block:"start"}),60); }
+}
 function bindForms(){
   $("#copyClose").onclick = () => $("#copyBox").hidden=true;
   $("#copyBox").onclick = e => { if(e.target.id==="copyBox") $("#copyBox").hidden=true; };
-  $("#payFormBox").addEventListener("toggle", () => { if(!$("#payFormBox").open) return; const m=S.members[ME.id]||{};
-    $("#pfKakao").value=m.kakaoLink||""; $("#pfToss").value=m.tossId||""; $("#pfBank").value=m.bank||""; $("#pfAcct").value=m.account||""; });
-  $("#payForm").onsubmit = async ev => { ev.preventDefault(); const m=S.members[ME.id]; if(!m){ toast("먼저 가입해 주세요"); return; }
+  $("#payFormBox").addEventListener("toggle", () => { if($("#payFormBox").open) openPayForm(UI.payWho||ME.id, false); });
+  $("#pfWho").onchange = e => openPayForm(e.target.value, false);
+  $("#payForm").onsubmit = async ev => { ev.preventDefault(); const who = ME.admin ? ($("#pfWho").value||ME.id) : ME.id; const m=S.members[who]; if(!m){ toast("먼저 가입해 주세요"); return; }
     const kakaoLink=$("#pfKakao").value.trim().replace(/^http:\/\//,"https://");
     if(kakaoLink && !kakaoOk(kakaoLink)){ toast("카카오페이 송금 링크는 https://qr.kakaopay.com/ 으로 시작해요"); return; }
     const tossId=$("#pfToss").value.trim().replace(/^https?:\/\//,"").replace(/^toss\.me\//,"").replace(/\/.*$/,"");
     if(tossId && !/^[A-Za-z0-9_.-]{2,40}$/.test(tossId)){ toast("토스 아이디를 확인해 주세요"); return; }
     const bank=$("#pfBank").value.trim(), account=$("#pfAcct").value.replace(/[^0-9-]/g,"");
-    if(await run(()=>Store.put("members", ME.id, {...m, kakaoLink, tossId, bank, account}), "송금 받을 곳을 저장했어요")) $("#payFormBox").open=false; };
+    if(await run(async()=>{ await Store.put("members", who, {...m, kakaoLink, tossId, bank, account}); if(who!==ME.id) await log("송금 정보 대신 입력", m.name); }, `${m.name} 님 송금 받을 곳을 저장했어요`)){ UI.payWho=null; $("#payFormBox").open=false; } };
   $("#rStart").addEventListener("change", ()=>{ if(!$("#rEnd").value || $("#rEnd").value<$("#rStart").value) $("#rEnd").value=Ledger.addDays($("#rStart").value,1); });
   $("#roundForm").onsubmit = ev => { ev.preventDefault(); Actions.saveRound(); };
   $("#rCancel").onclick = () => { resetRoundForm(); $("#roundFormBox").open=false; };
@@ -770,6 +781,7 @@ function bindForms(){
     if(ds.pin){ const n=S.notices.find(x=>x.id===ds.pin); await run(()=>Store.put("notices", n.id, {...n, pinned:!n.pinned})); return; }
     if(ds.delnotice) return arm(b, ()=>{ const n=S.notices.find(x=>x.id===ds.delnotice); run(async()=>{ await Store.remove("notices", n.id); await log("공지 삭제", n.title); }, "삭제했어요"); });
     if(ds.leave) return arm(b, ()=>{ const m=S.members[ds.leave]; run(async()=>{ await Store.put("members", m.id, {...m, leftAt:nowISO()}); await log("멤버 탈퇴 처리", m.name); }, `${m.name} 님을 탈퇴 처리했어요`); }, "한 번 더 누르면 탈퇴");
+    if(ds.payedit){ openPayForm(ds.payedit, true); return; }
     if(ds.resetpin) return arm(b, ()=>{ const m=S.members[ds.resetpin]; Store.resetPin(m.id).then(()=>{ toast(`${m.name} 님 PIN을 지웠어요. 다음 로그인 때 새 PIN을 정해요`); log("PIN 초기화", m.name); }).catch(e=>toast(e?.message||"실패했어요")); }, "한 번 더 누르면 초기화");
     if(ds.restore){ const m=S.members[ds.restore]; await run(async()=>{ await Store.put("members", m.id, {...m, leftAt:null}); await log("멤버 복구", m.name); }, `${m.name} 님을 복구했어요`); return; }
     if("renamebtn" in ds){ const f=b.closest(".item").querySelector("[data-rename]"); f.hidden=!f.hidden; if(!f.hidden) f.querySelector("input").focus();
