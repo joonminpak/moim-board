@@ -103,7 +103,7 @@ $$;
 
 -- 7) 가입: 이름 + PIN (4~8자리 숫자)
 create or replace function public.join_group(p_name text, p_pin text) returns text
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare v_id text; v_name text := btrim(p_name);
 begin
   if auth.uid() is null then raise exception '로그인 세션이 없어요'; end if;
@@ -123,7 +123,7 @@ end $$;
 
 -- 8) 다른 기기에서 로그인: 이름 + PIN. 총무가 추가한 멤버(PIN 없음)는 처음 로그인할 때 PIN이 정해짐
 create or replace function public.login_member(p_name text, p_pin text) returns text
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare v_id text; v_hash text;
 begin
   if auth.uid() is null then raise exception '로그인 세션이 없어요'; end if;
@@ -149,7 +149,7 @@ language sql security definer set search_path = public as $$
 $$;
 
 create or replace function public.change_pin(p_old text, p_new text) returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare v_id text := public.my_member_id(); v_hash text;
 begin
   if v_id is null then raise exception '먼저 로그인해 주세요'; end if;
@@ -162,7 +162,7 @@ end $$;
 
 -- 9) 총무 권한: 처음 한 번 총무 PIN을 정하고, 이후 그 PIN을 아는 멤버가 총무가 됨
 create or replace function public.claim_admin(p_admin_pin text) returns boolean
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare v_id text := public.my_member_id(); v_hash text;
 begin
   if v_id is null then raise exception '먼저 멤버로 가입해 주세요'; end if;
