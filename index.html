@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E6A56">
+<meta name="description" content="회차별 모임 정산 장부 · 참석 여부 · 영수증 · 변경 이력 공개">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230E6A56'/%3E%3Cpath d='M18 22h28M18 32h28M18 42h18' stroke='white' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
+<title>모임 총무 보드</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: 모바일 우선 장부 — 요약 띠 → 가로 스크롤 탭 → 한 줄 카드. 넓은 화면(폴드 펼침)에서 2열.
+   기준 화면: 폴드7 커버 ~412px(21:9), 폴드8 커버 5.5"(16:10), 폴드7 펼침 ~984×1092(거의 정사각), 폴드8 펼침 7.6"(4:3 가로) */
+:root{
+  --bg:#F2F5F4; --surface:#FFFFFF; --sunk:#E8EEEC; --ink:#14231E; --muted:#56665F; --line:#D3DDD9;
+  --accent:#0E6A56; --accent-ink:#FFFFFF; --accent-soft:#DCEDE7;
+  --good:#1C7744; --good-soft:#DDF0E3; --warn:#A8550C; --warn-soft:#F8EAD9; --bad:#B0261E; --bad-soft:#F7E0DE;
+  --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:10px; --tap:46px; --gap:14px; --pad:16px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1412; --surface:#16201C; --sunk:#1E2A26; --ink:#E2EBE8; --muted:#9AAAA4; --line:#2C3935;
+  --accent:#4DB596; --accent-ink:#07211A; --accent-soft:#1A2F28;
+  --good:#6BCB8F; --good-soft:#18301F; --warn:#E59C52; --warn-soft:#33251A; --bad:#F08A80; --bad-soft:#3A1E1C; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1412; --surface:#16201C; --sunk:#1E2A26; --ink:#E2EBE8; --muted:#9AAAA4; --line:#2C3935;
+  --accent:#4DB596; --accent-ink:#07211A; --accent-soft:#1A2F28;
+  --good:#6BCB8F; --good-soft:#18301F; --warn:#E59C52; --warn-soft:#33251A; --bad:#F08A80; --bad-soft:#3A1E1C; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.55;
+  padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px));
+  padding-block:14px calc(90px + env(safe-area-inset-bottom,0px));-webkit-tap-highlight-color:transparent}
+.wrap{width:100%;max-width:1200px;margin:0 auto;display:flex;flex-direction:column;gap:var(--gap);min-width:0}
+h1,h2,h3{margin:0;text-wrap:balance;line-height:1.3}
+h1{font-size:22px;font-weight:700} h2{font-size:19px;font-weight:700} h3{font-size:17px;font-weight:700}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.muted{color:var(--muted)} .small{font-size:14px} .xs{font-size:13px}
+header.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+.eyebrow{font-size:12px;letter-spacing:.06em;color:var(--accent);font-weight:700}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:13px;font-weight:500;background:var(--sunk);color:var(--muted);white-space:nowrap;line-height:1.4}
+.chip.acc{background:var(--accent-soft);color:var(--accent)} .chip.good{background:var(--good-soft);color:var(--good)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)} .chip.bad{background:var(--bad-soft);color:var(--bad)}
+.chip.ink{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
+button,.btn{font:inherit;font-size:15px;font-weight:500;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r);padding:0 16px;min-height:var(--tap);cursor:pointer;white-space:nowrap;touch-action:manipulation}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (hover:hover){button:hover{border-color:var(--accent)}}
+button.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted);padding:0 10px}
+button.danger{color:var(--bad)} button.danger.armed{background:var(--bad);color:var(--surface);border-color:var(--bad)}
+button.sm{font-size:14px;min-height:38px;padding:0 12px}
+button.block{width:100%}
+button:disabled{opacity:.5;cursor:not-allowed}
+input,select,textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:0 12px;min-height:var(--tap);min-width:0;width:100%}
+textarea{resize:vertical;min-height:84px;padding:10px 12px}
+input[type="checkbox"]{width:auto;min-height:0}
+label.f{display:flex;flex-direction:column;gap:5px;font-size:14px;color:var(--muted);font-weight:500;min-width:0}
+.grid2{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+.grid3{display:grid;gap:10px;grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:380px){.grid3{grid-template-columns:1fr 1fr}}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.spread{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.stack{display:flex;flex-direction:column;gap:10px;min-width:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:var(--pad);display:flex;flex-direction:column;gap:14px;min-width:0}
+details.form{background:transparent;border:1.5px dashed var(--line);border-radius:14px;padding:0}
+details.form>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:56px;padding:0 var(--pad);font-weight:700;font-size:17px;color:var(--accent);cursor:pointer}
+details.form>summary::-webkit-details-marker{display:none}
+details.form>summary::after{content:"＋";font-size:22px;line-height:1}
+details.form[open]>summary::after{content:"－"}
+details.form>.inner{padding:0 var(--pad) var(--pad);display:flex;flex-direction:column;gap:10px}
+details.form[open]{border-style:solid;border-color:var(--accent);background:var(--surface)}
+.cols{display:grid;gap:var(--gap);grid-template-columns:minmax(0,1fr)}
+.cards{display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:700px){
+  .cols{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)}
+  .cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+  :root{--pad:18px}
+}
+@media (min-width:1150px){.cards.c3{grid-template-columns:repeat(3,minmax(0,1fr))}}
+/* 폴드8 펼침(4:3 가로)처럼 높이가 낮은 넓은 화면: 세로 여백 줄임 */
+@media (min-width:700px) and (max-height:860px){:root{--gap:12px;--pad:14px} body{padding-block:10px 70px} .summary .v{font-size:18px!important}}
+/* summary */
+.summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden}
+.summary>button{all:unset;box-sizing:border-box;cursor:pointer;padding:12px;border-left:1px solid var(--line);min-width:0;display:flex;flex-direction:column;gap:2px}
+.summary>button:first-child{border-left:0}
+.summary>button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.summary .k{font-size:13px;color:var(--muted);font-weight:500}
+.summary .v{font-size:17px;font-weight:700;line-height:1.3;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.summary .s{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+@media (min-width:700px){.summary>button{padding:14px 18px}.summary .v{font-size:21px}.summary .s{font-size:13px}}
+/* tabs */
+nav.tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);z-index:5;padding-block:8px;margin-inline:-14px;padding-inline:14px}
+nav.tabs::-webkit-scrollbar{display:none}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+nav.tabs a{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:42px;padding:0 15px;border-radius:999px;color:var(--muted);text-decoration:none;font-weight:500;font-size:15px;border:1px solid var(--line);background:var(--surface)}
+nav.tabs a[aria-current="page"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+nav.tabs a .chip{padding:0 7px;font-size:12px}
+section.tab{display:flex;flex-direction:column;gap:var(--gap)}
+/* lists */
+.list{display:flex;flex-direction:column}
+.item{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;padding:12px 0;border-top:1px solid var(--line);min-width:0}
+.item:first-child{border-top:0;padding-top:0}
+.item:last-child{padding-bottom:0}
+.item .body{min-width:0;flex:1;overflow-wrap:anywhere}
+.empty{padding:20px 16px;border:1px dashed var(--line);border-radius:var(--r);color:var(--muted);font-size:15px;text-align:center}
+.pre{white-space:pre-wrap}
+.notice{border-left:4px solid var(--accent);padding:12px 14px;background:var(--surface);border-radius:0 12px 12px 0;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.notice.pinned{background:var(--accent-soft)}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.seg button{border:0;border-radius:0;border-left:1px solid var(--line);font-size:16px}
+.seg button:first-child{border-left:0}
+.seg button.on[data-v="yes"]{background:var(--good);color:var(--surface)}
+.seg button.on[data-v="no"]{background:var(--bad);color:var(--surface)}
+.seg button.on[data-v="unknown"]{background:var(--warn);color:var(--surface)}
+/* rounds */
+.round{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:var(--pad);display:flex;flex-direction:column;gap:10px;min-width:0}
+.round.now{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.round .ttl{font-size:20px;font-weight:700;line-height:1.3;overflow-wrap:anywhere}
+.round .when{font-size:15px}
+.roster{display:flex;flex-direction:column;gap:8px}
+.roster .grp{display:grid;grid-template-columns:76px minmax(0,1fr);gap:8px;align-items:start}
+.roster .lbl{font-size:14px;font-weight:700;padding-top:4px}
+.roster .names{display:flex;flex-wrap:wrap;gap:6px}
+.name{display:inline-flex;align-items:center;gap:4px;padding:4px 11px;border-radius:999px;font-size:15px;font-weight:500;background:var(--sunk);color:var(--ink);max-width:100%;overflow-wrap:anywhere}
+.name.yes{background:var(--good-soft);color:var(--good)} .name.no{background:var(--bad-soft);color:var(--bad)} .name.unknown{background:var(--warn-soft);color:var(--warn)}
+.name small{font-weight:400;font-size:13px;opacity:.9}
+.name.me{box-shadow:0 0 0 1.5px currentColor inset}
+.lbl.yes{color:var(--good)} .lbl.no{color:var(--bad)} .lbl.unknown{color:var(--warn)} .lbl.none{color:var(--muted)}
+.resp{display:flex;flex-direction:column;gap:6px}
+.resp .r{display:flex;gap:10px;align-items:baseline;padding:8px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+.resp .r:first-child{border-top:0}
+.resp .r strong{min-width:64px}
+/* tables & person cards */
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;white-space:nowrap}
+th{font-size:13px;color:var(--muted);font-weight:500;background:var(--sunk)}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+.only-wide{display:none} .only-narrow{display:flex}
+@media (min-width:700px){.only-wide{display:block}.only-narrow{display:none}}
+.pcard{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.pcard .nm{font-weight:700;font-size:17px}
+.pcard .bal{text-align:right;font-weight:700;font-size:17px}
+.pcard .meta{grid-column:1/3;font-size:14px;color:var(--muted)}
+.kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+@media (min-width:700px){.kv{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.kv>div{background:var(--sunk);border-radius:var(--r);padding:10px 12px;min-width:0}
+.kv .k{font-size:13px;color:var(--muted)} .kv .v{font-size:18px;font-weight:700}
+/* transfers */
+.xfer{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.xfer.done{background:var(--good-soft);border-color:transparent}
+.xfer .line{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.xfer .who{font-weight:700;font-size:17px} .xfer .amt{font-size:20px;font-weight:700}
+.xfer .acts{display:flex;gap:8px;flex-wrap:wrap}
+.xfer .acts button{flex:1;min-width:110px}
+/* days */
+.day{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)}
+.day>.dh{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:10px 14px;background:var(--sunk);font-size:15px;font-weight:700}
+.exp{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:start;padding:12px 14px;border-top:1px solid var(--line)}
+.exp:first-of-type{border-top:0}
+.exp .t{min-width:0;overflow-wrap:anywhere;font-size:16px}
+.exp .t .chip{margin-right:6px;vertical-align:1px}
+.exp .amt{text-align:right;font-weight:700;font-size:17px}
+.exp .sub{grid-column:1/3;display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;font-size:14px;color:var(--muted)}
+/* participants */
+.parts{display:flex;flex-wrap:wrap;gap:8px}
+.parts label{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;min-height:40px;padding:0 14px 0 10px;font-size:15px;cursor:pointer;background:var(--surface)}
+.parts input{width:18px;height:18px}
+.parts label:has(input:checked){background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:500}
+/* receipts */
+.rgrid{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (min-width:700px){.rgrid{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}}
+.rcard{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface);display:flex;flex-direction:column;text-align:left;padding:0;min-height:0;cursor:pointer;color:inherit;text-decoration:none;white-space:normal}
+.rcard .th{aspect-ratio:4/3;max-width:100%;background:var(--sunk);display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--muted);font-size:14px}
+.rcard img{width:100%;height:100%;object-fit:cover}
+.rcard .meta{padding:9px 10px;display:flex;flex-direction:column;gap:2px;font-size:14px}
+.thumbs{display:flex;flex-wrap:wrap;gap:6px}
+.thumbs span{display:inline-flex;align-items:center;gap:4px;font-size:13px;background:var(--sunk);border-radius:8px;padding:2px 2px 2px 10px}
+/* misc */
+.banner{background:var(--accent-soft);border:1px solid var(--accent);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.gate{padding:48px 20px;text-align:center;color:var(--muted)}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:12px;font-size:15px;max-width:calc(100% - 32px);z-index:50;text-align:center}
+#lb{position:fixed;inset:0;background:rgba(0,0,0,.86);display:flex;align-items:center;justify-content:center;z-index:60;padding:max(20px,env(safe-area-inset-top,0px)) 16px max(20px,env(safe-area-inset-bottom,0px));flex-direction:column;gap:12px}
+#lb img{max-width:100%;max-height:78vh;border-radius:8px;background:#fff}
+#lb .cap{color:#fff;font-size:15px;text-align:center}
+.fab{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:20;border-radius:999px;min-height:54px;padding:0 22px;font-size:16px;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+@media (min-width:700px){.fab{display:none}}
+details.sub>summary{cursor:pointer;color:var(--muted);font-size:15px;min-height:40px;display:flex;align-items:center}
+.hist{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:var(--pad);display:flex;flex-direction:column;gap:10px}
+@media (prefers-reduced-motion:no-preference){button,.rcard,nav.tabs a{transition:background .15s,border-color .15s,color .15s}}
+.paybtns{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px}
+a.payb{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:var(--tap);border-radius:var(--r);font-weight:700;font-size:15px;text-decoration:none;border:1px solid var(--line);color:var(--ink);background:var(--surface)}
+a.payb.kakao{background:#FEE500;color:#191600;border-color:#FEE500}
+a.payb.toss{background:#3182F6;color:#FFFFFF;border-color:#3182F6}
+.payinfo{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+#copyBox{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:70;display:flex;align-items:flex-end;justify-content:center;padding:16px max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+#copyBox .sheet{background:var(--surface);color:var(--ink);border-radius:16px;padding:16px;width:100%;max-width:560px;display:flex;flex-direction:column;gap:10px}
+#copyBox textarea{min-height:260px;font-size:14px}
+.seg button.on[data-regmode]{background:var(--accent);color:var(--accent-ink)}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header class="top">
+    <div style="min-width:0">
+      <div class="eyebrow">회차별 정산 장부 · 모든 내역 공개</div>
+      <h1 id="gname">모임 총무 보드</h1>
+    </div>
+    <span id="role" class="chip">확인 중</span>
+  </header>
+
+  <div id="gate" class="gate">장부를 불러오는 중이에요…</div>
+
+  <div id="app" class="wrap" hidden>
+    <div id="regbar"></div>
+    <div class="summary" id="summary"></div>
+    <nav class="tabs" id="tabs" aria-label="메뉴">
+      <a href="#home" data-t="home">회차·공지</a>
+      <a href="#attend" data-t="attend">참석 여부</a>
+      <a href="#settle" data-t="settle">회차 정산</a>
+      <a href="#done" data-t="done">정산 이력</a>
+      <a href="#receipts" data-t="receipts">영수증</a>
+      <a href="#members" data-t="members">멤버</a>
+      <a href="#history" data-t="history">변경 이력</a>
+    </nav>
+
+    <!-- 회차·공지 -->
+    <section class="tab" id="t-home">
+      <div class="panel">
+        <div class="spread"><h2>공지</h2><span id="noticeCount" class="chip"></span></div>
+        <div id="noticeList" class="stack"></div>
+      </div>
+      <div class="spread"><h2>모임 회차</h2><span class="small muted">참석 인원이 이름별로 보여요</span></div>
+      <div id="roundList" class="cards"></div>
+      <details class="sub" id="pastWrap" hidden><summary id="pastSum">지난 회차</summary><div id="pastList" class="cards" style="margin-top:8px"></div></details>
+      <div class="cards" data-poster hidden>
+        <details class="form" id="roundFormBox">
+          <summary id="roundTag">새 모임 등록</summary>
+          <form id="roundForm" class="inner">
+            <label class="f">모임 이름<input id="rTitle" placeholder="예: 강릉 1박 2일" required maxlength="40"></label>
+            <div class="grid2">
+              <label class="f">시작일<input id="rStart" type="date" required></label>
+              <label class="f">마지막 날<input id="rEnd" type="date"></label>
+            </div>
+            <label class="f">참석 여부 마감일 (선택)<input id="rDue" type="date"></label>
+            <label class="f">메모<input id="rMemo" placeholder="숙소, 집합 장소, 준비물 등"></label>
+            <div class="grid2"><button type="button" id="rCancel" hidden>취소</button><button class="pri" type="submit" id="rSubmit" style="grid-column:-2">모임 등록</button></div>
+          </form>
+        </details>
+        <details class="form" id="noticeFormBox">
+          <summary>공지 올리기</summary>
+          <form id="noticeForm" class="inner">
+            <input id="nTitle" placeholder="제목" required maxlength="60">
+            <textarea id="nBody" placeholder="내용 (계좌번호, 마감일 등)"></textarea>
+            <label class="row small"><input type="checkbox" id="nPin"> 맨 위에 고정</label>
+            <button class="pri block" type="submit">공지 등록</button>
+          </form>
+        </details>
+      </div>
+    </section>
+
+    <!-- 참석 여부 -->
+    <section class="tab" id="t-attend" hidden>
+      <div class="spread"><h2>모임별 참석 여부</h2><span class="small muted">불참은 사유를, 모름은 언제까지 알려줄지 적어 주세요</span></div>
+      <div id="attendList" class="cards"></div>
+      <details class="sub" id="attendPastWrap" hidden><summary id="attendPastSum">지난 모임 참석 기록</summary><div id="attendPast" class="cards" style="margin-top:8px"></div></details>
+    </section>
+
+    <!-- 회차 정산 -->
+    <section class="tab" id="t-settle" hidden>
+      <div class="panel">
+        <div class="stack" style="gap:8px">
+          <div class="spread"><h2>회차 정산</h2><span id="settleCount" class="chip"></span></div>
+          <select id="roundSel" aria-label="정산할 모임"></select>
+          <span id="roundMeta" class="small muted"></span>
+        </div>
+        <div id="settleBody"></div>
+      </div>
+      <div class="cols">
+        <div class="panel">
+          <div class="spread"><h2>일차별 지출</h2><span id="expCount" class="chip"></span></div>
+          <div id="expList" class="stack" style="gap:12px"></div>
+        </div>
+        <div class="stack" data-admin hidden>
+          <details class="form" id="expBox">
+            <summary id="expTag">지출 추가 (총무)</summary>
+            <form id="expForm" class="inner">
+              <div class="grid2">
+                <label class="f">일차<select id="xDay" required></select></label>
+                <label class="f">구분<select id="xSeq">
+                  <option>숙소</option><option>1차</option><option>2차</option><option>3차</option><option>4차</option>
+                  <option>아침</option><option>점심</option><option>저녁</option><option>카페</option><option>교통</option><option>장보기</option><option>입장·체험</option><option>기타</option></select></label>
+              </div>
+              <label class="f">가게·내용<input id="xTitle" placeholder="예: 경포 횟집" required></label>
+              <div class="grid2">
+                <label class="f">금액<input id="xAmount" type="number" inputmode="decimal" min="0" step="any" required></label>
+                <label class="f">통화<select id="xCur"></select></label>
+              </div>
+              <label class="f" id="xRateWrap" hidden>환율 (1단위 = 원)<input id="xRate" type="number" inputmode="decimal" min="0" step="any" value="1"></label>
+              <div id="xKrw" class="small muted num"></div>
+              <label class="f">결제한 사람<select id="xPayer" required></select></label>
+              <div class="stack" style="gap:6px">
+                <div class="spread"><span class="small muted" style="font-weight:500">함께한 사람</span><span class="row" style="gap:0"><button class="ghost sm" type="button" id="xAtt">참석자</button><button class="ghost sm" type="button" id="xAll">전원</button><button class="ghost sm" type="button" id="xNone">해제</button></span></div>
+                <div class="parts" id="xParts"></div>
+              </div>
+              <label class="f">영수증 사진·PDF<input id="xFiles" type="file" accept="image/*,application/pdf" multiple style="padding:10px 12px"></label>
+              <div class="thumbs" id="xKeep"></div>
+              <label class="f">메모<input id="xMemo" placeholder="선택"></label>
+              <div class="grid2"><button type="button" id="xCancel" hidden>취소</button><button class="pri" type="submit" id="xSubmit" style="grid-column:-2">지출 등록</button></div>
+            </form>
+          </details>
+          <details class="form" id="rateFormBox">
+            <summary>해외 환율 (총무)</summary>
+            <div id="rateBox" class="inner"></div>
+          </details>
+        </div>
+      </div>
+      <button class="pri fab" type="button" id="fab" data-admin hidden>＋ 지출</button>
+    </section>
+
+    <!-- 정산 이력 -->
+    <section class="tab" id="t-done" hidden>
+      <div class="spread"><h2>정산 이력</h2><span class="small muted">송금까지 모두 끝난 모임이에요</span></div>
+      <div id="doneList" class="stack"></div>
+    </section>
+
+    <!-- 영수증 -->
+    <section class="tab" id="t-receipts" hidden>
+      <div class="panel">
+        <div class="stack" style="gap:8px"><h2>영수증 모음</h2><select id="rFilter" aria-label="모임 선택"></select></div>
+        <div id="rGrid"></div>
+      </div>
+    </section>
+
+    <!-- 멤버 -->
+    <section class="tab" id="t-members" hidden>
+      <div class="cols">
+        <div class="panel">
+          <div class="spread"><h2>멤버</h2><span id="memberCount" class="chip"></span></div>
+          <div id="memberList" class="list"></div>
+          <details class="sub" id="leftWrap" hidden><summary id="leftSum"></summary><div id="leftList" class="list" style="margin-top:8px"></div></details>
+        </div>
+        <div class="stack">
+          <div class="panel">
+            <h3>권한 안내</h3>
+            <ul class="small" style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px">
+              <li>멤버: 가입, 참석 여부, 모임 등록, 공지 올리기, 송금 체크</li>
+              <li>총무: 지출·영수증 기록, 멤버 관리, 입금 확인 (총무 PIN 필요)</li>
+              <li>사이트 주소를 카톡방에 올리면 각자 이름과 PIN으로 가입해요.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <h3>내 계정</h3>
+            <div id="accountBox" class="stack"></div>
+          </div>
+          <details class="form" data-admin hidden>
+            <summary>직접 가입이 어려운 멤버 추가 (총무)</summary>
+            <form id="addMemberForm" class="inner">
+              <input id="amName" placeholder="이름" required maxlength="20">
+              <p class="xs muted" style="margin:0">총무가 대신 올려요. 그분은 나중에 [이미 가입했어요]에서 이름과 새 PIN으로 들어올 수 있어요.</p>
+              <button class="pri block" type="submit">추가</button>
+            </form>
+          </details>
+          <details class="form" data-admin hidden>
+            <summary>모임 설정 (총무)</summary>
+            <form id="setForm" class="inner">
+              <label class="f">모임 이름<input id="sName" placeholder="예: 고교 동창 여행 모임"></label>
+              <button class="pri block" type="submit">저장</button>
+            </form>
+          </details>
+          <details class="form" id="payFormBox" data-poster hidden>
+            <summary>내 송금 받을 곳</summary>
+            <form id="payForm" class="inner">
+              <p class="xs muted" style="margin:0">넣어 두면 나에게 보낼 사람 화면에 카카오페이·토스 버튼과 계좌 복사 버튼이 생겨요.</p>
+              <label class="f">카카오페이 송금 링크<input id="pfKakao" inputmode="url" placeholder="https://qr.kakaopay.com/..."></label>
+              <p class="xs muted" style="margin:-4px 0 0">카카오페이 앱 → 송금 → 송금코드 → 링크 복사</p>
+              <label class="f">토스 아이디 (toss.me)<input id="pfToss" placeholder="예: toss.me/myname 또는 myname"></label>
+              <div class="grid2"><label class="f">은행<input id="pfBank" placeholder="예: 카카오뱅크"></label><label class="f">계좌번호<input id="pfAcct" inputmode="numeric" placeholder="숫자만"></label></div>
+              <button class="pri block" type="submit">저장</button>
+            </form>
+          </details>
+          <button id="exportBtn" type="button" class="block">엑셀로 내려받기</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 변경 이력 -->
+    <section class="tab" id="t-history" hidden>
+      <div class="panel">
+        <div class="stack" style="gap:4px"><h2>변경 이력</h2><span class="small muted">등록·수정·삭제한 내용이 자동으로 남아요</span></div>
+        <div id="logList" class="list"></div>
+      </div>
+    </section>
+  </div>
+</div>
+<div id="toast" hidden></div>
+<div id="copyBox" hidden><div class="sheet"><h3>정산 문구</h3><p class="small muted" style="margin:0">자동 복사가 막혀 있어요. 아래 글을 길게 눌러 전체 선택 후 복사해 주세요.</p><textarea id="copyText" readonly></textarea><button type="button" class="pri block" id="copyClose">닫기</button></div></div>
+<div id="lb" hidden><img id="lbImg" alt="영수증 크게 보기"><div class="cap" id="lbCap"></div><button type="button" id="lbClose">닫기</button></div>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="store.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
